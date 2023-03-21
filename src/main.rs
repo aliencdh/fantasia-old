@@ -2,66 +2,61 @@ use color_eyre::eyre;
 use drawing_algorithms::*;
 use image::codecs::tga::TgaEncoder;
 use image::GenericImage;
+use obj_reader::Model;
 use std::fs::File;
 use std::io::BufWriter;
+use std::str::FromStr;
 
 mod drawing_algorithms;
+mod obj_reader;
 
 const WHITE: image::Rgba<u8> = image::Rgba([255, 255, 255, 255]);
 const RED: image::Rgba<u8> = image::Rgba([255, 0, 0, 255]);
 
-const WIDTH: u32 = 1024;
-const HEIGHT: u32 = 768;
+const WIDTH: i32 = 1024;
+const HEIGHT: i32 = 1024;
 
 fn main() -> eyre::Result<()> {
     // draw a black image
-    let mut image = image::DynamicImage::ImageRgba8(image::RgbaImage::new(100, 100));
+    let mut image =
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(WIDTH as u32, HEIGHT as u32));
 
-    for x in 0..100 {
-        for y in 0..100 {
+    for x in 0..(WIDTH as u32) {
+        for y in 0..(HEIGHT as u32) {
             image.put_pixel(x, y, image::Rgba([0, 0, 0, 255]));
         }
     }
 
     // load obj
-    let (models, _) = tobj::load_obj("obj/head.obj", &tobj::LoadOptions::default())?;
-    let model = models
-        .get(0)
-        .ok_or(eyre::eyre!("Couldn't get the model."))?;
+    let model = std::fs::read_to_string("obj/head.obj")
+        .map_err(|err| eyre::eyre!("{err:?}"))
+        .and_then(|src| Model::from_str(&src))?;
 
     // draw
-    let mut next_face = 0;
-    for face in 0..model.mesh.face_arities.len() {
-        let end = next_face + model.mesh.face_arities[face] as usize;
+    for face in model.faces {
+        for i in 0..3 {
+            let v0 = model.vertices[face.indices[i] - 1];
+            let v1 = model.vertices[face.indices[(i + 1) % 3] - 1];
 
-        let face_indices = &model.mesh.indices[next_face..end];
+            let x0 = ((v0.x + 1f32) * ((WIDTH-1) as f32) / 2f32) as i32;
+            let y0 = ((v0.y + 1f32) * ((HEIGHT-1) as f32) / 2f32) as i32;
+            let x1 = ((v1.x + 1f32) * ((WIDTH-1) as f32) / 2f32) as i32;
+            let y1 = ((v1.y + 1f32) * ((HEIGHT-1) as f32) / 2f32) as i32;
 
-        for i in (0..7).step_by(3) {
-            let v0 = Vec3::from(
-                &model.mesh.positions[(face_indices[i] as usize - 1)..(face_indices[i + 2] as usize - 1)],
-            );
-            let v1 = Vec3::from(
-                &model.mesh.positions
-                    [(face_indices[(i + 3) % 9] as usize - 1)..(face_indices[i + 5] as usize - 1)],
-            );
-
-            let x0 = (v0.x + 1f32) * (WIDTH / 2) as f32;
-            let y0 = (v0.y + 1f32) * (HEIGHT / 2) as f32;
-            let x1 = (v1.x + 1f32) * (WIDTH / 2) as f32;
-            let y1 = (v1.y + 1f32) * (HEIGHT / 2) as f32;
-
-            line(
-                x0 as i32, y0 as i32, x1 as i32, y1 as i32, &mut image, WHITE,
-            );
+            line(x0, y0, x1, y1, &mut image, WHITE);
         }
-        next_face = end;
     }
 
     // encode and write to file
     let writer = BufWriter::new(File::create("output.tga")?);
     let encoder = TgaEncoder::new(writer);
 
-    encoder.encode(image.flipv().as_bytes(), 100, 100, image::ColorType::Rgba8)?;
+    encoder.encode(
+        image.flipv().as_bytes(),
+        WIDTH as u32,
+        HEIGHT as u32,
+        image::ColorType::Rgba8,
+    )?;
 
     Ok(())
 }
@@ -82,7 +77,7 @@ impl From<&[f32]> for Vec3 {
         Self {
             x: value[0],
             y: value[1],
-            z: value[3],
+            z: value[2],
         }
     }
 }
