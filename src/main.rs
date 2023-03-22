@@ -14,16 +14,18 @@ mod obj_reader;
 const WHITE: image::Rgba<u8> = image::Rgba([255, 255, 255, 255]);
 const RED: image::Rgba<u8> = image::Rgba([255, 0, 0, 255]);
 const GREEN: image::Rgba<u8> = image::Rgba([0, 255, 0, 255]);
+const BLUE: image::Rgba<u8> = image::Rgba([0, 0, 255, 255]);
 
-const DIMENSION: i32 = 1024;
+const WIDTH: i32 = 1024;
+const HEIGHT: i32 = 1024;
 
 fn main() -> eyre::Result<()> {
     // draw a black image
     let mut image =
-        image::DynamicImage::ImageRgba8(image::RgbaImage::new(DIMENSION as u32, DIMENSION as u32));
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(WIDTH as u32, HEIGHT as u32));
 
-    for x in 0..(DIMENSION as u32) {
-        for y in 0..(DIMENSION as u32) {
+    for x in 0..(WIDTH as u32) {
+        for y in 0..(HEIGHT as u32) {
             image.put_pixel(x, y, image::Rgba([0, 0, 0, 255]));
         }
     }
@@ -34,22 +36,14 @@ fn main() -> eyre::Result<()> {
         .and_then(|src| Model::from_str(&src))?;
 
     // draw
+    let mut zbuffer = [[f32::NEG_INFINITY; HEIGHT as usize]; WIDTH as usize];
+
     let light_direction = Vec3::new(0f32, 0f32, -1f32);
     for face in model.faces {
         let world_coords = face
             .indices
             .iter()
             .map(|i| model.vertices[i - 1])
-            .collect::<Vec<_>>();
-
-        let screen_coords = world_coords
-            .iter()
-            .map(|vertex| {
-                (
-                    ((vertex.x + 1f32) * (DIMENSION - 1) as f32 / 2f32) as i32,
-                    ((vertex.y + 1f32) * (DIMENSION - 1) as f32 / 2f32) as i32,
-                )
-            })
             .collect::<Vec<_>>();
 
         let normal = (world_coords[2] - world_coords[0])
@@ -59,10 +53,11 @@ fn main() -> eyre::Result<()> {
         let light_intensity = normal.dot(light_direction);
 
         if light_intensity > 0f32 {
-            filled_triangle(
-                screen_coords[0],
-                screen_coords[1],
-                screen_coords[2],
+            triangle_3d(
+                world_coords
+                    .try_into()
+                    .map_err(|err| eyre::eyre!("{err:?}"))?,
+                &mut zbuffer,
                 &mut image,
                 image::Rgba([
                     (light_intensity * 255f32) as u8,
@@ -80,8 +75,8 @@ fn main() -> eyre::Result<()> {
 
     encoder.encode(
         image.flipv().as_bytes(),
-        DIMENSION as u32,
-        DIMENSION as u32,
+        WIDTH as u32,
+        HEIGHT as u32,
         image::ColorType::Rgba8,
     )?;
 
