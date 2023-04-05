@@ -6,6 +6,9 @@ A 3D renderer I decided to write as a practice project.
 
 ## Testing fantasia out:
 
+Dependencies:
+- [Rust](https://www.rust-lang.org/tools/install)
+
 ```bash
 git clone https://github.com/aliencdh/fantasia
 cd fantasia
