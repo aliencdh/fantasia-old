@@ -1,4 +1,3 @@
-use color_eyre::eyre;
 use drawing_algorithms::*;
 use image::codecs::tga::TgaEncoder;
 use image::GenericImage;
@@ -12,15 +11,10 @@ mod drawing_algorithms;
 mod obj_reader;
 mod structures;
 
-const WHITE: image::Rgba<u8> = image::Rgba([255, 255, 255, 255]);
-const RED: image::Rgba<u8> = image::Rgba([255, 0, 0, 255]);
-const GREEN: image::Rgba<u8> = image::Rgba([0, 255, 0, 255]);
-const BLUE: image::Rgba<u8> = image::Rgba([0, 0, 255, 255]);
-
 const WIDTH: i32 = 1024;
 const HEIGHT: i32 = 1024;
 
-fn main() -> eyre::Result<()> {
+fn main() -> Result<(), String> {
     // draw a black image
     let mut image =
         image::DynamicImage::ImageRgba8(image::RgbaImage::new(WIDTH as u32, HEIGHT as u32));
@@ -33,7 +27,7 @@ fn main() -> eyre::Result<()> {
 
     // load obj
     let model = std::fs::read_to_string("obj/head.obj")
-        .map_err(|err| eyre::eyre!("{err:?}"))
+        .map_err(|err| err.to_string())
         .and_then(|src| Model::from_str(&src))?;
 
     // draw
@@ -55,9 +49,9 @@ fn main() -> eyre::Result<()> {
 
         if light_intensity > 0f32 {
             triangle_3d(
-                world_coords
-                    .try_into()
-                    .map_err(|err| eyre::eyre!("{err:?}"))?,
+                // # Safety
+                // In this case, `try_into` is infallible.
+                world_coords.try_into().unwrap(),
                 &mut zbuffer,
                 &mut image,
                 image::Rgba([
@@ -71,15 +65,17 @@ fn main() -> eyre::Result<()> {
     }
 
     // encode and write to file
-    let writer = BufWriter::new(File::create("output.tga")?);
+    let writer = BufWriter::new(File::create("output.tga").map_err(|err| err.to_string())?);
     let encoder = TgaEncoder::new(writer);
 
-    encoder.encode(
-        image.flipv().as_bytes(),
-        WIDTH as u32,
-        HEIGHT as u32,
-        image::ColorType::Rgba8,
-    )?;
+    encoder
+        .encode(
+            image.flipv().as_bytes(),
+            WIDTH as u32,
+            HEIGHT as u32,
+            image::ColorType::Rgba8,
+        )
+        .map_err(|err| err.to_string())?;
 
     Ok(())
 }

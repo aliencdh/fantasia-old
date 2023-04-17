@@ -1,5 +1,4 @@
 use crate::Vec3;
-use color_eyre::eyre;
 use std::str::FromStr;
 
 pub type Vertex = Vec3;
@@ -18,7 +17,7 @@ impl Model {
     }
 }
 impl FromStr for Model {
-    type Err = eyre::Error;
+    type Err = String;
     fn from_str(src: &str) -> Result<Self, Self::Err> {
         let mut rv = Model::empty();
         for line in src.split('\n') {
@@ -34,20 +33,19 @@ impl FromStr for Model {
 }
 
 impl FromStr for Vertex {
-    type Err = eyre::Error;
+    type Err = String;
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        if let Some('v') = src.chars().next() {
-        } else {
-            eyre::bail!("Invalid string: {src}");
+        if !src.starts_with('v') {
+            return Err(format!("Invalid string: {src}"));
         }
 
         let data = src
             .split(' ')
             .skip(1)
-            .flat_map(|s| f32::from_str(s.trim()).map_err(|err| eyre::eyre!("{err:?}")))
+            .flat_map(|s| f32::from_str(s.trim()).map_err(|err| err.to_string()))
             .collect::<Vec<_>>();
         if data.len() != 3 {
-            eyre::bail!("Invalid string: {src}");
+            return Err(format!("Invalid string: {src}"));
         }
 
         Ok(Self {
@@ -63,11 +61,10 @@ pub struct Face {
     pub indices: Vec<usize>,
 }
 impl FromStr for Face {
-    type Err = eyre::Error;
+    type Err = String;
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        if let Some('f') = src.chars().next() {
-        } else {
-            eyre::bail!("Invalid string: {src}");
+        if !src.starts_with('f') {
+            return Err(format!("Invalid string: {src}"));
         }
 
         let data = src.split(' ').skip(1).collect::<Vec<_>>();
@@ -76,12 +73,12 @@ impl FromStr for Face {
             .flat_map(|s| {
                 s.split('/')
                     .next()
-                    .ok_or(eyre::eyre!("Invalid string: {src}"))
-                    .and_then(|s| usize::from_str(s.trim()).map_err(|err| eyre::eyre!("{err:?}")))
+                    .ok_or(format!("Invalid string: {src}"))
+                    .and_then(|s| usize::from_str(s.trim()).map_err(|err| err.to_string()))
             })
             .collect::<Vec<_>>();
         if indices.len() != 3 {
-            eyre::bail!("Invalid string: {src}");
+            return Err(format!("Invalid string: {src}"));
         }
 
         Ok(Self { indices })
